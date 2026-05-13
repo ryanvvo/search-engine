@@ -43,7 +43,7 @@ def open_file(path):
 
         tokens = tokenize(text)
 
-        p = tag.p.name
+        p = tag.parent.name
         weight = weights.get(p, 1) #default to 1
 
         for token in tokens:
