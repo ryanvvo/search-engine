@@ -14,16 +14,13 @@ warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 PATH = 'developer.zip' # switch to analyst for debugging
 def tokenize(text):
     '''
-    Reads in text file and returns a list of the tokens in that file. For the purposes of this project,
+    Reads in text file and returns a normalized list. 
     a token is a sequence of alphanumeric characters, independent of capitalization (so Apple, apple, aPpLe are the same token).
     returns List<Token>
     '''
 
     tokens = re.findall(r"[a-z0-9]+", text.lower())
-    total = len(tokens)
-    counts = Counter(token for token in tokens)
-
-    return counts, total
+    return tokens
 
 def open_file(path):
     '''
@@ -35,8 +32,25 @@ def open_file(path):
     content = data['content']
 
     soup = BeautifulSoup(content, 'html.parser')
-    text = soup.get_text(strip=True, separator=True)
-    count, total = tokenize(text)
+    weights = {'title': 5,'h1': 3, 'h2': 3, 'h3': 3, 'b': 2, 'strong': 2 }
+    count = Counter()
+    total = 0
+
+    for tag in soup.find_all(string=True):
+        text = tag.strip()
+        if not text:
+            continue
+
+        tokens = tokenize(text)
+
+        p = tag.p.name
+        weight = weights.get(p, 1) #default to 1
+
+        for token in tokens:
+            count[token] += weight
+            total += 1
+
+
     return url, count, total
 
 number_indexed= 0
