@@ -57,11 +57,9 @@ def open_file(path):
         total += 1
     return url, count, total
 
-number_indexed= 0
-
+page_id = 0
 r_index = defaultdict(list) # Probably switch to max-heap later down the road
-count = 0
-
+id_mapping = {}
 with zipfile.ZipFile(PATH, "r") as zf:
     for filename in zf.namelist():
         if filename.endswith(".json"):
@@ -72,9 +70,9 @@ with zipfile.ZipFile(PATH, "r") as zf:
                 filename = Path(filename)
                 print(filename.stem, len(word_count), total, f"{debug_post_t-debug_pre_t:.2f}")  # debug
             for key in word_count.keys():
-                r_index[key].append((filename.stem, word_count[key])) # format: [file_name, count_of_word], probably switch to doc id later
-
-            number_indexed += 1
+                r_index[key].append((page_id, word_count[key])) # format: [file_name, count_of_word], probably switch to doc id later
+            id_mapping[page_id] = url
+            page_id += 1
         else:
             print(filename)
 
@@ -83,6 +81,12 @@ dumping_pre_t = time.perf_counter()
 with open("index.json", "w") as f:
     json.dump(r_index, f)
 print(f"Dumping finished. {time.perf_counter() - dumping_pre_t:.4f} seconds.")
+print("Dumping mapping.json...")
+dumping_pre_t = time.perf_counter()
+with open("mapping.json", "w") as f:
+    json.dump(id_mapping, f)
+print(f"Dumping finished. {time.perf_counter() - dumping_pre_t:.4f} seconds.")
+
 
 total_size = os.path.getsize("index.json") / 1024 #get in bytes, then convert to KB
 end_time = time.perf_counter()
@@ -92,7 +96,7 @@ delta_min = (end_time - start_time) // 60
 delta_sec = (end_time - start_time) % 60
 
 print(f"Execution time: {end_time - start_time:.4f} seconds\n")
-print("Number of indexed documents:", number_indexed)
+print("Number of indexed documents:", len(id_mapping))
 print("Number of unique tokens:", len(r_index))
 print("Size in KB:", f"{total_size:.2f}")
 
@@ -105,7 +109,7 @@ def update_stats():
 
     with open(temp, "w") as outFile:
         outFile.write(f"Execution time: {delta_min} minutes, {delta_sec:.2f} seconds\n\n")
-        outFile.write(f"Number of indexed documents: {number_indexed}\n")  # Using f-strings (Python 3.6+)
+        outFile.write(f"Number of indexed documents: {len(id_mapping)}\n")
         outFile.write(f"Number of unique tokens: {len(r_index)}\n")
         outFile.write(f"Size in KB: {total_size:.2f}\n\n")
 
