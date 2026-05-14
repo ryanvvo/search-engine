@@ -3,24 +3,27 @@ import json
 import re
 import os
 from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
+from pathlib import Path
 from collections import Counter, defaultdict
 import warnings
-
+from nltk.stem import PorterStemmer
 import time
 start_time = time.perf_counter()
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 PATH = 'developer.zip' # switch to analyst for debugging
+TAG_WHITELIST = ['title','h1','h2','h3', 'h4', 'h5', 'h6','b','strong']
+WEIGHTS = {'title': 4,'h1': 2, 'h2': 2, 'h3': 2,'h4': 1, 'h5': 1, 'h6': 1, 'b': 1, 'strong': 1 }
+
 def tokenize(text):
     '''
-    Reads in text file and returns a normalized list. 
+    Reads in text file and returns a normalized list.
     a token is a sequence of alphanumeric characters, independent of capitalization (so Apple, apple, aPpLe are the same token).
-    returns List<Token>
+    returns Generator<Token>
     '''
 
-    tokens = re.findall(r"[a-z0-9]+", text.lower())
-    return tokens
+    return (match.group() for match in re.finditer(r"[a-z0-9]+", text.lower()))
 
 def open_file(path):
     '''
@@ -29,28 +32,28 @@ def open_file(path):
     with zf.open(path, 'r') as f:
         data = json.load(f)
     url = data['url']
-    content = data['content']
 
-    soup = BeautifulSoup(content, 'html.parser')
-    weights = {'title': 5,'h1': 3, 'h2': 3, 'h3': 3, 'b': 2, 'strong': 2 }
+    soup = BeautifulSoup(data['content'], 'lxml')
     count = Counter()
     total = 0
+    main_content = soup.find("body") # Skip headers
+    if not main_content: # Skip empty content
+        return url, count, total
 
-    for tag in soup.find_all(string=True):
-        text = tag.strip()
-        if not text:
-            continue
+    for tag in main_content.find_all(True):
+        weight = WEIGHTS.get(tag.parent.name, 1)
+        if weight == 1:
+            continue  # handled by the flat pass below; skip redundant work
+        for string in tag.strings:
+            tag_tokens = tokenize(string)
+            for token in tag_tokens:
+                count[token] += weight
 
-        tokens = tokenize(text)
+    tokens = tokenize(main_content.get_text(separator = ' ', strip = True))
 
-        p = tag.parent.name
-        weight = weights.get(p, 1) #default to 1
-
-        for token in tokens:
-            count[token] += weight
-            total += 1
-
-
+    for token in tokens:
+        count[token] += 1
+        total += 1
     return url, count, total
 
 number_indexed= 0
@@ -61,16 +64,24 @@ count = 0
 with zipfile.ZipFile(PATH, "r") as zf:
     for filename in zf.namelist():
         if filename.endswith(".json"):
-            url, word_count, _ = open_file(filename)
-            print(url, len(word_count)) # debug
-
+            if __debug__: debug_pre_t = time.perf_counter()
+            url, word_count, total = open_file(filename)
+            if __debug__:
+                debug_post_t= time.perf_counter()
+                filename = Path(filename)
+                print(filename.stem, len(word_count), total, f"{debug_post_t-debug_pre_t:.2f}")  # debug
             for key in word_count.keys():
-                r_index[key].append((filename, word_count[key])) #name for now, can also easily change it to be the file number. format: [file_name, count_of_word]
+                r_index[key].append((filename.stem, word_count[key])) # format: [file_name, count_of_word]
 
             number_indexed += 1
+        else:
+            print(filename)
 
+print("Dumping json...")
+dumping_pre_t = time.perf_counter()
 with open("index.json", "w") as f:
     json.dump(r_index, f)
+print(f"Dumping finished. {time.perf_counter() - dumping_pre_t:.4f} seconds.")
 
 total_size = os.path.getsize("index.json") / 1024 #get in bytes, then convert to KB
 end_time = time.perf_counter()
@@ -82,7 +93,7 @@ delta_sec = (end_time - start_time) % 60
 print(f"Execution time: {end_time - start_time:.4f} seconds\n")
 print("Number of indexed documents:", number_indexed)
 print("Number of unique tokens:", len(r_index))
-print("Size in KB:", total_size)
+print("Size in KB:", f"{total_size:.2f}")
 
 def update_stats():
     '''
