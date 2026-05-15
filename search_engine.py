@@ -2,6 +2,7 @@ import zipfile
 import json
 import re
 import os
+import heapq
 from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning, MarkupResemblesLocatorWarning
 from pathlib import Path
 from collections import Counter, defaultdict
@@ -60,7 +61,7 @@ def open_file(path):
 stemmer = PorterStemmer()
 
 page_id = 0
-r_index = defaultdict(list) # Probably switch to max-heap later down the road
+r_index = defaultdict(list) # swapped to max-heap for more efficient retrieval of top k results, format: [stemmed token: list[(-count, doc id)]]
 id_mapping = {}
 with zipfile.ZipFile(PATH, "r") as zf:
     for filename in zf.namelist():
@@ -69,7 +70,7 @@ with zipfile.ZipFile(PATH, "r") as zf:
             url, word_count, total = open_file(filename)
             if __debug__: print(filename, len(word_count), total, f"{time.perf_counter()-debug_pre_t:.2f}")
             for key in word_count.keys():
-                r_index[stemmer.stem(key)].append((page_id, word_count[key])) # format: [doc id: list[postings, count]]
+                heapq.heappush(r_index[stemmer.stem(key)], (-word_count[key], page_id)) # format: [doc id: list[postings, count]]
             id_mapping[page_id] = url
             page_id += 1
         elif __debug__:
