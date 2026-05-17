@@ -14,7 +14,7 @@ start_time = time.perf_counter()
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
-PATH = 'developer.zip' # switch to analyst for debugging
+PATH = 'analyst.zip' # switch to analyst for debugging developer
 TAG_WHITELIST = ['title','h1','h2','h3', 'h4', 'h5', 'h6','b','strong']
 WEIGHTS = {'title': 4,'h1': 2, 'h2': 2, 'h3': 2,'h4': 1, 'h5': 1, 'h6': 1, 'b': 1, 'strong': 1 }
 MAX_INDEX_SIZE = 10 * 1024 * 1024 # 10 mb
@@ -43,7 +43,7 @@ def open_file(zf, path):
         return url, count, total
 
     for tag in main_content.find_all(True):
-        weight = WEIGHTS.get(tag.parent.name, 1)
+        weight = WEIGHTS.get(tag.name, 1)
         if weight == 1:
             continue  # handled by the flat pass below; skip redundant work
         for string in tag.strings:
@@ -118,6 +118,79 @@ def merge_indices(num_of_indices, dest='index.json'):
                 pass
     print(f"Merging finished. {time.perf_counter() - start:.4f} seconds.")
 
+def retrieve(path='index.json'):
+    """ 
+    Loads and returns inverted index based on provided path.
+    """
+    index = {}
+    with open(path, 'r') as inFile:
+        for line in inFile:
+            ln = json.loads(line)
+            token = next(iter(ln))
+            index[token] = ln[token]
+    
+    return index
+
+def query_search(query, index, id_mapping):
+    stemmer = PorterStemmer()
+
+    tokens = [stemmer.stem(token) for token in tokenize(query)]
+    if not tokens:
+        return []
+    
+    all_tokens = []
+    for token in tokens:
+        if token not in index:
+            return []                   # will not have anything, as we are using AND to match
+        all_tokens.append(index[token])
+
+    doc = [] #list of dictionaries w/ doc ids as keys and scores as values
+    for tk in all_tokens:
+        matches = {}
+
+        for id, count in tk:
+            matches[int(id)] = count
+        doc.append(matches)
+
+    overlaps = set(doc[0].keys())       #use first element as base
+    for scores in doc[1:]:
+        overlaps &= set(scores.keys())
+
+    ret = []
+    for doc_id in overlaps:
+        score = sum(scores[doc_id] for scores in doc)
+
+        url = id_mapping[str(doc_id)] if str(doc_id) in id_mapping else id_mapping[doc_id]
+        ret.append((score, url))
+
+    ret.sort(reverse=True, key=lambda x: x[0])
+
+    return ret[:5] #top 5
+
+
+def run_retrieval(index_path="index.json", mapping_path="id_mapping.json"):
+    index = retrieve(index_path)
+
+    with open(mapping_path, "r") as inFile:
+        id_mapping = json.load(inFile)
+
+    queries_to_test = ["cristina lopes", "machine learning","ACM", "master of software engineering"]
+
+    with open("retrieval_results.txt", "w") as outFile:
+        for query in queries_to_test:
+            outFile.write(f"Query: {query}\n")
+
+            results = query_search(query, index, id_mapping)
+
+            if not results:
+                outFile.write("No results found.\n\n")
+                continue
+
+            for rank, (score, url) in enumerate(results, start=1):
+                outFile.write(f"{rank}. {url}  score={score}\n")
+            outFile.write("\n")
+
+
 def main():
     stemmer = PorterStemmer()
 
@@ -181,6 +254,7 @@ def main():
         outFile.write(f"Size in KB: {total_size:.2f}\n\n")
 
     os.replace(temp, fin)
+    run_retrieval()
 
 if __name__ == '__main__':
     main()
