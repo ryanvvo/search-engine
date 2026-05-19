@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IR Search Engine</title>
+
+  <style>
+    body {
+      font-family: Times New Roman, sans-serif;
+      background: #ffffff;
+      padding: 40px;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: auto;
+      background: #d3d3d3;
+      padding: 24px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      margin-bottom: 20px;
+    }
+
+    .search-box {
+      display: flex;
+      gap: 10px;
+    }
+
+    input {
+      flex: 1;
+      padding: 12px;
+      font-size: 16px;
+    }
+
+    button {
+      padding: 12px 18px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    ul {
+      margin-top: 25px;
+      padding-left: 20px;
+    }
+
+    li {
+      margin-bottom: 12px;
+      background: #fafafa;
+      padding: 10px;
+      border-radius: 6px;
+    }
+
+    .loading {
+      margin-top: 20px;
+      color: gray;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Search</h1>
+
+    <div class="search-box">
+      <input
+        type="text"
+        id="queryInput"
+        placeholder="Enter search query..."
+      />
+      <button onclick="runSearch()">Search</button>
+    </div>
+    <div id="loading" class="loading"></div>
+    <div id="searchTime" style="margin-top:10px; color:gray;"></div>
+    <ul id="results"></ul>
+  </div>
+
+  <script>
+    async function runSearch() {
+      const query = document.getElementById("queryInput").value;
+      const resultsList = document.getElementById("results");
+      const loading = document.getElementById("loading");
+      const searchTime = document.getElementById("searchTime");
+      resultsList.innerHTML = "";
+
+      if (!query.trim()) return;
+
+      loading.textContent = "Searching...";
+
+      try {
+        // Call backend endpoint
+        const response = await fetch("/search", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ query })
+        });
+
+        const data = await response.json();
+
+        loading.textContent = "";
+        searchTime.textContent = "Time taken: ".concat(data.time);
+
+        // data.results should contain top 5 results
+        data.results.forEach(result => {
+          const li = document.createElement("li");
+          li.innerHTML = `<a href="${result[1]}" target="_blank">${result[1]}<a>`;
+          resultsList.appendChild(li);
+        });
+
+      } catch (err) {
+        loading.textContent = "";
+        resultsList.innerHTML =
+          "<li>Error performing search.</li>";
+
+        console.error(err);
+      }
+    }
+  </script>
+</body>
+</html>

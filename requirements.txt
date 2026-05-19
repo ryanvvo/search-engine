@@ -1,3 +1,4 @@
 beautifulsoup4~=4.14.3
 nltk
 lxml
+flask
