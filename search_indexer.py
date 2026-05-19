@@ -1,7 +1,6 @@
 import sys
 import zipfile
 import json
-import re
 import os
 import heapq
 from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning, MarkupResemblesLocatorWarning
@@ -16,7 +15,7 @@ start_time = time.perf_counter()
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
-PATH = 'analyst.zip' # switch to analyst for debugging developer
+PATH = 'developer.zip' # switch to analyst for debugging developer
 TAG_WHITELIST = ['title','h1','h2','h3', 'h4', 'h5', 'h6','b','strong']
 WEIGHTS = {'title': 4,'h1': 2, 'h2': 2, 'h3': 2,'h4': 1, 'h5': 1, 'h6': 1, 'b': 1, 'strong': 1 }
 MAX_INDEX_SIZE = 10 * 1024 * 1024 # 10 mb
@@ -112,20 +111,43 @@ def merge_indices(num_of_indices, dest='index.json'):
                 pass
     print(f"Merging finished. {time.perf_counter() - start:.4f} seconds.")
 
+def build_offset_index():
+    """
+    Builds an offset index for the final merged index to allow for efficient retrieval of tokens.
+    """
+    print("Building offset index...")
+    start = time.perf_counter()
+    offsets = {}
+    with open('index.json', 'rb') as f:
+        while True:
+            offset = f.tell()
+            line = f.readline()
+            if not line:
+                break
+            t = next(iter(json.loads(line)))
+            offsets[t]=offset
+
+    with open('offsets.json', 'w') as f:
+        json.dump(offsets, f)
+    print(f"Finished building offset index. {time.perf_counter()-start:.2f} seconds.")
+
 def main():
     stemmer = PorterStemmer()
 
     page_id = 0
     indices = 0
-    unique_tokens = set() # REMOVE AFTER M1
+    unique_tokens = set() # may delete later
     r_index = defaultdict(list) # swapped to max-heap for more efficient retrieval of top k results, format: [stemmed token: list[(-count, doc id)]]
     id_mapping = {}
     with zipfile.ZipFile(PATH, "r") as zf:
         for filename in zf.namelist():
             if filename.endswith(".json"):
-                if __debug__: debug_pre_t = time.perf_counter()
+                if __debug__:
+                    debug_pre_t = time.perf_counter()
+                    print(filename, end=' ')
                 url, word_count, total = open_file(zf, filename)
-                if __debug__: print(filename, len(word_count), total, f"{time.perf_counter()-debug_pre_t:.2f}")
+                if __debug__:
+                    print(len(word_count), total, f"{time.perf_counter()-debug_pre_t:.2f}")
                 for key in word_count.keys():
                     r_index[stemmer.stem(key)].append((page_id, word_count[key])) # format: [doc id: list[postings, count]]
                     unique_tokens.add(stemmer.stem(key))
@@ -156,6 +178,7 @@ def main():
     print("Removing partial indices...")
     for p in [f"index{i}.json" for i in range(indices+1)]:
         os.remove(p)
+    build_offset_index()
 
     print(f"Execution time: {end_time - start_time:.4f} seconds\n")
     print("Number of indexed documents:", len(id_mapping))
@@ -173,7 +196,6 @@ def main():
         outFile.write(f"Number of indexed documents: {len(id_mapping)}\n")
         outFile.write(f"Number of unique tokens after stemming: {len(unique_tokens)}\n")
         outFile.write(f"Size in KB: {total_size:.2f}\n\n")
-
     os.replace(temp, fin)
 
 if __name__ == '__main__':

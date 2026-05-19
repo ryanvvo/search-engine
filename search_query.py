@@ -2,7 +2,11 @@ import json
 from nltk.stem import PorterStemmer
 from search_utils import tokenize
 import time
+from pathlib import Path
 
+INDEX_PATH = 'index.json'
+MAP_PATH = 'id_mapping.json'
+OFFSET_PATH = 'offsets.json'
 def retrieve(path='index.json'):
     """
     Loads and returns inverted index based on provided path.
@@ -16,8 +20,15 @@ def retrieve(path='index.json'):
 
     return index
 
+def index_search(token, offsets, index_path=INDEX_PATH):
+    if token not in offsets:
+        return []
 
-def query_search(query, index, id_mapping):
+    with open(index_path, 'rb') as f:
+        f.seek(offsets[token])
+        return json.loads(f.readline())[token]
+
+def query_search(query, id_mapping, offsets):
     stemmer = PorterStemmer()
 
     tokens = [stemmer.stem(token) for token in tokenize(query)]
@@ -26,9 +37,10 @@ def query_search(query, index, id_mapping):
 
     all_tokens = []
     for token in tokens:
-        if token not in index:
+        search = index_search(token, offsets)
+        if not search:
             return []  # will not have anything, as we are using AND to match
-        all_tokens.append(index[token])
+        all_tokens.append(search)
 
     doc = []  # list of dictionaries w/ doc ids as keys and scores as values
     for tk in all_tokens:
@@ -60,11 +72,11 @@ def prompt_user():
     query = input("Enter a query: ")
     return query
 
-def print_results(query, results):
+def print_results(query, results, dt):
     """
     Prints the results of a query.
     """
-    print(f"Top 5 results for '{query}'")
+    print(f"Top 5 results for '{query}' in {dt:.6f} seconds.")
     for rank, (score, url) in enumerate(results, start=1):
         print(f"{rank}. {url}  score={score}")
 
@@ -82,14 +94,12 @@ def log_output(log):
 
             outFile.write("\n")
 
-def run_retrieval(index_path="index.json", mapping_path="id_mapping.json"):
+def run_retrieval(index_path=INDEX_PATH, mapping_path=MAP_PATH, offset_path=OFFSET_PATH):
     log = {}
-    print("Retrieving index...")
-    start = time.perf_counter()
-    index = retrieve(index_path)
-    print(f"Retrieving done. {(time.perf_counter() - start):.2f} seconds.")
     with open(mapping_path, "r") as inFile:
         id_mapping = json.load(inFile)
+    with open(offset_path, "r") as inFile:
+        offsets = json.load(inFile)
     #1 – cristina lopes
     #2 - machine learning
     #3 - ACM
@@ -99,13 +109,18 @@ def run_retrieval(index_path="index.json", mapping_path="id_mapping.json"):
         if not query:
             print("Exiting...")
             break
-        results = query_search(query, index, id_mapping)
-        print_results(query, results)
+        start = time.perf_counter()
+        results = query_search(query, id_mapping, offsets)
+        print_results(query, results, time.perf_counter() - start)
         log[query] = results
 
     log_output(log)
 
 def main():
+    if not (Path(INDEX_PATH).exists and Path(MAP_PATH).exists and Path(OFFSET_PATH).exists):
+        print("Please run indexer first!")
+        return
+
     run_retrieval()
 
 
