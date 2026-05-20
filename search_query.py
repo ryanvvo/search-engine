@@ -1,4 +1,5 @@
 import json
+import math
 from nltk.stem import PorterStemmer
 from search_utils import tokenize
 import time
@@ -31,23 +32,41 @@ def index_search(token, offsets, index_path=INDEX_PATH):
 def query_search(query, id_mapping, offsets):
     stemmer = PorterStemmer()
 
+    # N = total number of documents in the index
+    N = len(id_mapping)
+
     tokens = [stemmer.stem(token) for token in tokenize(query)]
     if not tokens:
         return []
 
     all_tokens = []
+    doc_frequencies = {} # Store df(t)
+
     for token in tokens:
         search = index_search(token, offsets)
         if not search:
             return []  # will not have anything, as we are using AND to match
         all_tokens.append(search)
+        # df(t) is the number of documents containing this token
+        doc_frequencies[token] = len(search)
 
     doc = []  # list of dictionaries w/ doc ids as keys and scores as values
-    for tk in all_tokens:
+    for tk, token in zip(all_tokens, tokens):
         matches = {}
+        df_t = doc_frequencies[token]
+        
+        # Calculate IDF for this token
+        # Adding 1 to avoid potential division by zero if df_t is somehow 0
+        idf = math.log(N / (df_t + 1)) 
 
-        for id, count in tk:
-            matches[int(id)] = count
+        for doc_id, count in tk:
+            # tf_weight = 1 + math.log(count) if count > 0 else 0
+            # Else, tf_weight = count
+            tf_weight = 1 + math.log(count) if count > 0 else 0
+            
+            # Calculate TF-IDF score for this term in this document
+            matches[int(doc_id)] = tf_weight * idf
+            
         doc.append(matches)
 
     overlaps = set(doc[0].keys())  # use first element as base
