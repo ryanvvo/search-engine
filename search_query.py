@@ -8,18 +8,6 @@ from pathlib import Path
 INDEX_PATH = 'index.json'
 MAP_PATH = 'id_mapping.json'
 OFFSET_PATH = 'offsets.json'
-def retrieve(path='index.json'):
-    """
-    Loads and returns inverted index based on provided path.
-    """
-    index = {}
-    with open(path, 'r') as inFile:
-        for line in inFile:
-            ln = json.loads(line)
-            token = next(iter(ln))
-            index[token] = ln[token]
-
-    return index
 
 def index_search(token, offsets, index_path=INDEX_PATH):
     if token not in offsets:

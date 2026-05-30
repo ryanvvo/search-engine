@@ -8,7 +8,7 @@ from collections import Counter, defaultdict
 import warnings
 from nltk.stem import PorterStemmer
 import time
-from search_utils import tokenize
+import search_utils
 
 start_time = time.perf_counter()
 
@@ -19,6 +19,7 @@ PATH = 'developer.zip' # switch to analyst for debugging developer
 TAG_WHITELIST = ['title','h1','h2','h3', 'h4', 'h5', 'h6','b','strong']
 WEIGHTS = {'title': 4,'h1': 2, 'h2': 2, 'h3': 2,'h4': 1, 'h5': 1, 'h6': 1, 'b': 1, 'strong': 1 }
 MAX_INDEX_SIZE = 10 * 1024 * 1024 # 10 mb
+SIM_REMOVAL = True
 
 def open_file(zf, path):
     '''
@@ -40,11 +41,11 @@ def open_file(zf, path):
         if weight == 1:
             continue  # handled by the flat pass below; skip redundant work
         for string in tag.strings:
-            tag_tokens = tokenize(string)
+            tag_tokens = search_utils.tokenize(string)
             for token in tag_tokens:
                 count[token] += weight
 
-    tokens = tokenize(main_content.get_text(separator = ' ', strip = True))
+    tokens = search_utils.tokenize(main_content.get_text(separator = ' ', strip = True))
 
     for token in tokens:
         count[token] += 1
@@ -141,24 +142,27 @@ def main():
     id_mapping = {}
     with zipfile.ZipFile(PATH, "r") as zf:
         for filename in zf.namelist():
-            if filename.endswith(".json"):
-                if __debug__:
-                    debug_pre_t = time.perf_counter()
-                    print(filename, end=' ')
-                url, word_count, total = open_file(zf, filename)
-                if __debug__:
-                    print(len(word_count), total, f"{time.perf_counter()-debug_pre_t:.2f}")
-                for key in word_count.keys():
-                    r_index[stemmer.stem(key)].append((page_id, word_count[key])) # format: [doc id: list[postings, count]]
-                    unique_tokens.add(stemmer.stem(key))
-                id_mapping[page_id] = url
-                page_id += 1
+            if not filename.endswith(".json"): continue
 
-                if sys.getsizeof(r_index) > MAX_INDEX_SIZE:
-                    print("Max index size reached, dumping to disk...")
-                    dump_json(r_index, f"index{indices}.json", partial=True)
-                    r_index.clear()
-                    indices += 1
+            if __debug__:
+                debug_pre_t = time.perf_counter()
+                print(filename, end=' ')
+            url, word_count, total = open_file(zf, filename)
+            if __debug__:
+                print(len(word_count), total, f"{time.perf_counter()-debug_pre_t:.2f}")
+            if SIM_REMOVAL and search_utils.is_similar(word_count): # Simhash 95% remove similar pages
+                    continue
+            for key in word_count.keys():
+                r_index[stemmer.stem(key)].append((page_id, word_count[key])) # format: [doc id: list[postings, count]]
+                unique_tokens.add(stemmer.stem(key))
+            id_mapping[page_id] = url
+            page_id += 1
+
+            if sys.getsizeof(r_index) > MAX_INDEX_SIZE:
+                print("Max index size reached, dumping to disk...")
+                dump_json(r_index, f"index{indices}.json", partial=True)
+                r_index.clear()
+                indices += 1
 
             elif __debug__:
                 print(filename)
