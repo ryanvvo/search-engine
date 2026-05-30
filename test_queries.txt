@@ -1,0 +1,42 @@
+Poor Results:
+1.
+- Issue:
+- Fix:
+2.
+- Issue:
+- Fix:
+3.
+- Issue:
+- Fix:
+4.
+- Issue:
+- Fix:
+5.
+- Issue:
+- Fix:
+6.
+- Issue:
+- Fix:
+7.
+- Issue:
+- Fix:
+8.
+- Issue:
+- Fix:
+9.
+- Issue:
+- Fix:
+10.
+- Issue:
+- Fix:
+Good Results:
+11.
+12.
+13.
+14.
+15.
+16.
+17.
+18.
+19.
+20.
