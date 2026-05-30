@@ -45,6 +45,14 @@ def open_file(zf, path):
             for token in tag_tokens:
                 count[token] += weight
 
+    # include anchor texts
+    for anchor in main_content.find_all("a"):
+        text = anchor.get_text(" ", strip=True)
+        if text:
+            anchor_tokens = search_utils.tokenize(text)
+            for token in anchor_tokens:
+                count[token] += 1
+
     tokens = search_utils.tokenize(main_content.get_text(separator = ' ', strip = True))
 
     for token in tokens:
