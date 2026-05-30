@@ -82,7 +82,7 @@ def query_search(query, id_mapping, offsets):
 
     ret.sort(reverse=True, key=lambda x: x[0])
 
-    return ret[:5]  # top 5
+    return ret
 
 def prompt_user():
     """

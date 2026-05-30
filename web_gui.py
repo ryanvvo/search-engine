@@ -23,7 +23,7 @@ def search():
     results = query_search(query, mapping, offsets)
 
     return jsonify({
-        "results": results[:5],
+        "results": results,
         "time": f"{time.perf_counter() - start:.4f}"
     })
 

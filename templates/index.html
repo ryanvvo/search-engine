@@ -104,7 +104,7 @@
         loading.textContent = "";
         searchTime.textContent = "Time taken: ".concat(data.time);
 
-        // data.results should contain top 5 results
+        // data.results should contain top results
         data.results.forEach(result => {
           const li = document.createElement("li");
           li.innerHTML = `<a href="${result[1]}" target="_blank">${result[1]}<a>`;
