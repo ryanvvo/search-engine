@@ -1,11 +1,11 @@
 Poor Results:
-1.
-- Issue:
+1. zzzzz
+- Issue: "Top 5 results for 'zzzzzz" still printed.
+- Fix: Created edge case coverage to print either all results or nothing.
+2. zzzzzz
+- Issue: Shows results with score of 9pts.
 - Fix:
-2.
-- Issue:
-- Fix:
-3.
+3. 
 - Issue:
 - Fix:
 4.
@@ -30,13 +30,13 @@ Poor Results:
 - Issue:
 - Fix:
 Good Results:
-11.
-12.
-13.
-14.
-15.
-16.
-17.
-18.
-19.
-20.
+11. masters of software engineering (stemming handled properly. same results for both this and master of software engineering)
+12. acm (capitalization does not affect resulting links)
+13. masters-of-software engineering (properly handles '-')
+14. lopes christina (handles each term separately)
+15. ICS (popular term provided, links presented are from different websites)
+16. ACM ACM (score increases, links remain the same)
+17. cristina lopes machine learning ACM master of software engineering (response time of 0.0214 seconds despite long query)
+18. www.ics.uci.edu (properly treats each subsection as different terms)
+19. the (popular term, found in 0.022 seconds. scores not overly high despite the frequency of the word)
+20. computer science (linkes returned have computer science in heading, showing weight of headings)
