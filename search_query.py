@@ -83,7 +83,7 @@ def print_results(query, results, dt):
     """
     Prints the results of a query.
     """
-    print(f"Top 5 results for '{query}' in {dt:.6f} seconds.")
+    print(f"Top results for '{query}' in {dt:.6f} seconds.")
     for rank, (score, url) in enumerate(results, start=1):
         print(f"{rank}. {url}  score={score}")
 

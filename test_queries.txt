@@ -5,9 +5,12 @@ Poor Results:
 2. zzzzzz
 - Issue: Shows results with score of 9pts.
 - Fix:
-3. 
-- Issue:
-- Fix:
+3.
+    data mining and information fusion in sensor networks if information fusion was able to be able to do that\
+    data mining and information fusion in sensor networks if information fusion was able to be able to do that\
+    data mining and information fusion in sensor networks if information fusion was able to be able to do that
+- Issue: Passed the .3 second time limit.
+- Fix: Instead of binary searching through the file, we used byte offsets to get O(1) search time.
 4.
 - Issue:
 - Fix:
