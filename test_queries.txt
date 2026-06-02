@@ -11,9 +11,9 @@ Poor Results:
     data mining and information fusion in sensor networks if information fusion was able to be able to do that
 - Issue: Passed the .3 second time limit.
 - Fix: Instead of binary searching through the file, we used byte offsets to get O(1) search time.
-4.
-- Issue:
-- Fix:
+4. collaborate
+- Issue: negative tf-idf scoring, document frequency was higher than expected
+- Fix: Stemmed during processing instead of after to ensure different, but same stem words weren't treated differently
 5.
 - Issue:
 - Fix:

@@ -1,5 +1,7 @@
 import json
 import math
+from collections import defaultdict
+
 from nltk.stem import PorterStemmer
 from search_utils import tokenize
 import time
@@ -17,13 +19,22 @@ def index_search(token, offsets, index_path=INDEX_PATH):
         f.seek(offsets[token])
         return json.loads(f.readline())[token]
 
-def query_search(query, id_mapping, offsets):
+def query_search(query, id_mapping, offsets, **kwargs):
     stemmer = PorterStemmer()
+    if kwargs.get("two_gram", False):
+        tokens = []
+        query_tokens = tokenize(query)
+        prev = stemmer.stem(next(query_tokens))
+        for token in query_tokens:
+            token = stemmer.stem(token)
+            tokens.append(prev + "-" + token)
+            prev = token
 
+    else:
+        tokens = [stemmer.stem(token) for token in tokenize(query)]
     # N = total number of documents in the index
     N = len(id_mapping)
 
-    tokens = [stemmer.stem(token) for token in tokenize(query)]
     if not tokens:
         return []
 
@@ -31,7 +42,10 @@ def query_search(query, id_mapping, offsets):
     doc_frequencies = {} # Store df(t)
 
     for token in tokens:
-        search = index_search(token, offsets)
+        if kwargs.get("two_gram", False):
+            search = index_search(token, offsets, index_path="two_gram_index.json")
+        else:
+            search = index_search(token, offsets)
         if not search:
             return []  # will not have anything, as we are using AND to match
         all_tokens.append(search)
@@ -46,7 +60,6 @@ def query_search(query, id_mapping, offsets):
         # Calculate IDF for this token
         # Adding 1 to avoid potential division by zero if df_t is somehow 0
         idf = math.log(N / (df_t + 1)) 
-
         for doc_id, count in tk:
             # tf_weight = 1 + math.log(count) if count > 0 else 0
             # Else, tf_weight = count
@@ -67,9 +80,6 @@ def query_search(query, id_mapping, offsets):
 
         url = id_mapping[str(doc_id)] if str(doc_id) in id_mapping else id_mapping[doc_id]
         ret.append((score, url))
-
-    ret.sort(reverse=True, key=lambda x: x[0])
-
     return ret
 
 def prompt_user():
@@ -95,11 +105,11 @@ def log_output(log):
 
             if not results:
                 outFile.write("No results found.\n\n")
-
             for rank, (score, url) in enumerate(results, start=1):
                 outFile.write(f"{rank}. {url}  score={score}\n")
 
             outFile.write("\n")
+
 
 def run_retrieval(index_path=INDEX_PATH, mapping_path=MAP_PATH, offset_path=OFFSET_PATH):
     log = {}
@@ -107,10 +117,10 @@ def run_retrieval(index_path=INDEX_PATH, mapping_path=MAP_PATH, offset_path=OFFS
         id_mapping = json.load(inFile)
     with open(offset_path, "r") as inFile:
         offsets = json.load(inFile)
-    #1 – cristina lopes
-    #2 - machine learning
-    #3 - ACM
-    #4 - master of software engineering
+    with open("two_gram_" + mapping_path, "r") as inFile:
+        two_gram_mapping = json.load(inFile)
+    with open("two_gram_" + offset_path, "r") as inFile:
+        two_gram_offsets = json.load(inFile)
     while True:
         query = prompt_user()
         if not query:
@@ -118,6 +128,14 @@ def run_retrieval(index_path=INDEX_PATH, mapping_path=MAP_PATH, offset_path=OFFS
             break
         start = time.perf_counter()
         results = query_search(query, id_mapping, offsets)
+        if Path("two_gram_index.json").exists():
+            two_gram_results = query_search(query, two_gram_mapping, two_gram_offsets, two_gram=True)
+            score_map = defaultdict(float)
+            for score, url in results + two_gram_results:
+                score_map[url] += score
+            results = [(score, url) for url, score in score_map.items()]
+
+        results.sort(reverse=True, key=lambda x: x[0])
         print_results(query, results, time.perf_counter() - start)
         log[query] = results
 
