@@ -116,24 +116,28 @@ def evaluate_position(query, results, mapping, offsets):
     tokens = {stemmer.stem(token) for token in tokenize(query)}
     positions = {} # token: [id, [positions]]
     for token in tokens:
-        positions[token] = index_search(token, offsets, index_path="positional_index.json")
+        postings = index_search(token, offsets, index_path="positional_index.json")
+        positions[token] = {page: pos for page, pos in postings}
     for i, (score, url) in enumerate(results):
         page_id = mapping.get(url, -1)
         if page_id == -1: continue
 
         relevant_positions = [] # list[list[positions in relevant id]]
-        for _, posting_position in positions.items(): # filters positions to only the relevant page
-            for page, position in posting_position:
-                if page_id == page:
-                    relevant_positions.append(position)
-                    break
+        for posting_position in positions.values(): # filters positions to only the relevant page
+            pos = posting_position.get(page_id)
+            if pos:
+                relevant_positions.append(pos)
+        if len(relevant_positions) < 2: continue
 
         bonus = 0
-        for col in range(len(min(relevant_positions, key=len))): # naive distance calculating, in order (for speed)
+        shortest_len = len(min(relevant_positions, key=len))
+        for col in range(shortest_len): # naive distance calculating, in order (for speed)
             total_dist = 0
             start = relevant_positions[0][col]
             for row in range(1, len(relevant_positions)):
                 total_dist +=  relevant_positions[row][col] - start
+            if total_dist == 0:
+                continue
             bonus += 1/total_dist
 
         results[i] = (score + bonus, url)

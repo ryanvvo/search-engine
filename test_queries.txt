@@ -14,9 +14,9 @@ Poor Results:
 4. collaborate
 - Issue: negative tf-idf scoring, document frequency was higher than expected
 - Fix: Stemmed during processing instead of after to ensure different, but same stem words weren't treated differently
-5.
-- Issue:
-- Fix:
+5. community community community community community
+- Issue: Too slow after adding positional index
+- Fix: Optimized to include more O(1) operations
 6.
 - Issue:
 - Fix:

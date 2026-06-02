@@ -6,20 +6,29 @@ import webbrowser
 from pathlib import Path
 from collections import defaultdict
 app = Flask(__name__)
-
 # Homepage route
 with open(MAP_PATH, "r") as inFile:
+    print("Loading mapping...")
     mapping = json.load(inFile)
 with open(OFFSET_PATH, "r") as inFile:
+    print("Loading offsets...")
     offsets = json.load(inFile)
-with open("two_gram_" + MAP_PATH, "r") as inFile:
-    two_gram_mapping = json.load(inFile)
-with open("two_gram_" + OFFSET_PATH, "r") as inFile:
-    two_gram_offsets = json.load(inFile)
-with open("positional_index_inv_" + MAP_PATH, "r") as inFile:
-    positional_inverse_index_mapping = json.load(inFile)
-with open("positional_index_" + OFFSET_PATH, "r") as inFile:
-    positional_index_offsets = json.load(inFile)
+if Path("two_gram_index.json").exists():
+    print("Found two-gram index.")
+    with open("two_gram_" + MAP_PATH, "r") as inFile:
+        print("Loading two-gram mapping...")
+        two_gram_mapping = json.load(inFile)
+    with open("two_gram_" + OFFSET_PATH, "r") as inFile:
+        print("Loading two-gram offsets...")
+        two_gram_offsets = json.load(inFile)
+if Path("positional_index.json").exists():
+    print("Positional index found.")
+    with open("positional_index_inv_" + MAP_PATH, "r") as inFile:
+        print("Loading positional-index inverse mapping...")
+        positional_inverse_index_mapping = json.load(inFile)
+    with open("positional_index_" + OFFSET_PATH, "r") as inFile:
+        print("Loading positional-index offsets...")
+        positional_index_offsets = json.load(inFile)
 @app.route("/")
 def home():
     return render_template("index.html")
