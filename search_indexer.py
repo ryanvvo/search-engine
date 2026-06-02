@@ -15,7 +15,7 @@ start_time = time.perf_counter()
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
-PATH = 'analyst.zip' # switch to analyst for debugging developer
+PATH = 'developer.zip' # switch to analyst for debugging developer
 TAG_WHITELIST = ['title','h1','h2','h3', 'h4', 'h5', 'h6','b','strong']
 WEIGHTS = {'title': 4,'h1': 2, 'h2': 2, 'h3': 2,'h4': 1, 'h5': 1, 'h6': 1, 'b': 1, 'strong': 1 }
 MAX_INDEX_SIZE = 5 * 1024 * 1024 # 5 mb
