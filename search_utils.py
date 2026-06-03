@@ -1,6 +1,6 @@
 import re
 from collections import Counter
-import hashlib
+import hashlib, time, json
 HASH_BITS = 64
 hash_cache = set()
 
@@ -63,3 +63,17 @@ def is_similar(word_count: Counter, threshold=.95):
             return True
     hash_cache.add(sim)
     return False
+
+def dump_json(data, dest, partial=False):
+    """
+    Dumps the dictionary into the destination file.
+    """
+    print(f"Dumping {dest}...")
+    dumping_pre_t = time.perf_counter()
+    with open(dest, "w") as f:
+        if partial:
+            for token in sorted(data.keys()):
+                f.write(json.dumps({token: data[token]}) + "\n")
+        else:
+            json.dump(data, f)
+    print(f"Dumping finished. {time.perf_counter() - dumping_pre_t:.4f} seconds.")

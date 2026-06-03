@@ -13,6 +13,7 @@ with open(MAP_PATH, "r") as inFile:
 with open(OFFSET_PATH, "r") as inFile:
     print("Loading offsets...")
     offsets = json.load(inFile)
+
 if Path("two_gram_index.json").exists():
     print("Found two-gram index.")
     with open("two_gram_" + MAP_PATH, "r") as inFile:
@@ -21,6 +22,7 @@ if Path("two_gram_index.json").exists():
     with open("two_gram_" + OFFSET_PATH, "r") as inFile:
         print("Loading two-gram offsets...")
         two_gram_offsets = json.load(inFile)
+
 if Path("positional_index.json").exists():
     print("Positional index found.")
     with open("positional_index_inv_" + MAP_PATH, "r") as inFile:
@@ -35,6 +37,12 @@ if Path("hits_results.json").exists():
     with open("hits_results.json", 'r') as inFile:
         print("Loading hits-results...")
         hits_results = json.load(inFile)
+
+if Path("pr_results.json").exists():
+    print("PR results found...")
+    with open("pr_results.json", 'r') as inFile:
+        print("Loading pr-results...")
+        pr_results = json.load(inFile)
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -59,7 +67,11 @@ def search():
 
     if Path("hits_results.json").exists():
         for i, (score, url) in enumerate(results):
-            results[i] = (score + score * hits_results[url], url)
+            results[i] = (score + score * hits_results[url]['authority'], url)
+
+    if Path("pr_results.json").exists():
+        for i, (score, url) in enumerate(results):
+            results[i] = (score + score * pr_results[url], url)
 
     results.sort(reverse=True, key=lambda x: x[0])
 

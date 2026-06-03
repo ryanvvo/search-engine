@@ -4,10 +4,11 @@ import re
 import math
 from collections import defaultdict
 from urllib.parse import urljoin, urldefrag
+from search_utils import dump_json
 
 PATH = "developer.zip"
 
-def _extract_links(base_url: str, html: str) -> list[str]:
+def _extract_links(base_url, html):
     """Return absolute URLs found in tags without fragments."""
     links = []
     for m in re.compile(r'<a[^>]+href=["\']([^"\'#][^"\']*)["\']',re.IGNORECASE).finditer(html):
@@ -21,7 +22,7 @@ def _extract_links(base_url: str, html: str) -> list[str]:
             pass
     return links
 
-class ZipIndex:
+class AdjIndex:
     """
     Builds an index from the zipfile
     """
@@ -126,6 +127,58 @@ def hit_alg(nodes, index, max_iter=50, tol=1e-6):
 
     return {nodes[i]: {"hub": hub[i], "authority": auth[i]} for i in range(n)}
 
+def pagerank(nodes, index, damping=0.85, max_iter=50, tol=1e-6):
+    nodes = list(nodes)
+    n = len(nodes)
+
+    if n == 0:
+        return {}
+
+    print(f"running PageRank on {n} nodes...")
+
+    idx = {url: i for i, url in enumerate(nodes)}
+    node_set = set(nodes)
+
+    # build adjacency
+    out = [[] for _ in range(n)]
+    for url in nodes:
+        i = idx[url]
+
+        for tgt in index.out_links.get(url, []):
+            if tgt in node_set:
+                out[i].append(idx[tgt])
+
+    # initial ranks
+    rank = [1.0 / n] * n
+    base = (1.0 - damping) / n
+    for iteration in range(max_iter):
+        new_rank = [base] * n
+        dangling_mass = 0.0
+
+        # distribute rank
+        for i in range(n):
+            if not out[i]:
+                dangling_mass += rank[i]
+                continue
+            share = damping * rank[i] / len(out[i])
+            for j in out[i]:
+                new_rank[j] += share
+
+        # distribute dangling pages
+        dangling_share = damping * dangling_mass / n
+        for i in range(n):
+            new_rank[i] += dangling_share
+
+        # convergence
+        delta = math.sqrt(sum((new_rank[i] - rank[i]) ** 2 for i in range(n)))
+        rank = new_rank
+        print(f"iter {iteration + 1:3d}  d={delta:.2e}")
+
+        if delta < tol:
+            print("converged")
+            break
+
+    return {nodes[i]: rank[i] for i in range(n)}
 
 def authority_scores(results):
     return {url: scores["authority"] for url, scores in results.items()}
@@ -134,12 +187,10 @@ def hub_scores(results):
     return {url: scores["hub"] for url, scores in results.items()}
 
 if __name__ == "__main__":
-    index = ZipIndex(PATH)
+    index = AdjIndex(PATH)
     nodes = index.all_urls()
-    results = hit_alg(nodes, index)
+    hit_results = hit_alg(nodes, index)
+    pr_results = pagerank(nodes, index)
 
-    # json dump results
-    out_path = "hits_results.json"
-    with open(out_path, "w") as f:
-        json.dump(authority_scores(results), f)
-    print(f"authority scores written to {out_path}")
+    dump_json(hit_results, "hits_results.json")
+    dump_json(pr_results, "pr_results.json")
