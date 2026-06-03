@@ -8,7 +8,7 @@ from collections import Counter, defaultdict
 import warnings
 from nltk.stem import PorterStemmer
 import time
-import search_utils
+from search_utils import tokenize, is_similar, dump_json
 
 start_time = time.perf_counter()
 
@@ -43,7 +43,7 @@ def open_file(zf, path):
         if weight == 1:
             continue  # handled by the flat pass below; skip redundant work
         for string in tag.strings:
-            tag_tokens = search_utils.tokenize(string)
+            tag_tokens = tokenize(string)
             for token in tag_tokens:
                 count[stemmer.stem(token)] += weight
 
@@ -51,30 +51,16 @@ def open_file(zf, path):
     for anchor in main_content.find_all("a"):
         text = anchor.get_text(" ", strip=True)
         if text:
-            anchor_tokens = search_utils.tokenize(text)
+            anchor_tokens = tokenize(text)
             for token in anchor_tokens:
                 count[stemmer.stem(token)] += 1
 
-    tokens = search_utils.tokenize(main_content.get_text(separator = ' ', strip = True))
+    tokens = tokenize(main_content.get_text(separator = ' ', strip = True))
 
     for token in tokens:
         count[stemmer.stem(token)] += 1
         total += 1
     return url, count, total
-
-def dump_json(data, dest, partial=False):
-    """
-    Dumps the dictionary into the destination file.
-    """
-    print(f"Dumping {dest}...")
-    dumping_pre_t = time.perf_counter()
-    with open(dest, "w") as f:
-        if partial:
-            for token in sorted(data.keys()):
-                f.write(json.dumps({token: data[token]}) + "\n")
-        else:
-            json.dump(data, f)
-    print(f"Dumping finished. {time.perf_counter() - dumping_pre_t:.4f} seconds.")
 
 def iter_index(path):
     """ Yields from a partial index to avoid loading entire partial index."""
@@ -171,7 +157,7 @@ def main():
 
             if __debug__:
                 print(len(word_count), total, f"{time.perf_counter()-debug_pre_t:.2f}")
-            if SIM_REMOVAL and search_utils.is_similar(word_count): # Simhash 95% remove similar pages
+            if SIM_REMOVAL and is_similar(word_count): # Simhash 95% remove similar pages
                     continue
             for key in word_count.keys():
                 r_index[key].append((page_id, word_count[key])) # format: [doc id: list[postings, count]]

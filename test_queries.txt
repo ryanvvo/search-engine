@@ -14,9 +14,9 @@ Poor Results:
 4. collaborate
 - Issue: negative tf-idf scoring, document frequency was higher than expected
 - Fix: Stemmed during processing instead of after to ensure different, but same stem words weren't treated differently
-5. the and of
-- Issue: Causes massive postings list the sorts through most of the URLS
-- Fix: Implemented Stopwords list and check for stop words
+5. community community community community community
+- Issue: Too slow after adding positional index
+- Fix: Optimized to include more O(1) operations
 6. How to code in python
 - Issue: Stop words in combination with keywords causes a dramatic increase in TF-IDF scores
 - Fix: Implemented Stopwords list and check for stop words

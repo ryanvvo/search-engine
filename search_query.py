@@ -133,24 +133,28 @@ def evaluate_position(query, results, mapping, offsets):
     tokens = {stemmer.stem(token) for token in tokenize(query)}
     positions = {} # token: [id, [positions]]
     for token in tokens:
-        positions[token] = index_search(token, offsets, index_path="positional_index.json")
+        postings = index_search(token, offsets, index_path="positional_index.json")
+        positions[token] = {page: pos for page, pos in postings}
     for i, (score, url) in enumerate(results):
         page_id = mapping.get(url, -1)
         if page_id == -1: continue
 
         relevant_positions = [] # list[list[positions in relevant id]]
-        for _, posting_position in positions.items(): # filters positions to only the relevant page
-            for page, position in posting_position:
-                if page_id == page:
-                    relevant_positions.append(position)
-                    break
+        for posting_position in positions.values(): # filters positions to only the relevant page
+            pos = posting_position.get(page_id)
+            if pos:
+                relevant_positions.append(pos)
+        if len(relevant_positions) < 2: continue
 
         bonus = 0
-        for col in range(len(min(relevant_positions, key=len))): # naive distance calculating, in order (for speed)
+        shortest_len = len(min(relevant_positions, key=len))
+        for col in range(shortest_len): # naive distance calculating, in order (for speed)
             total_dist = 0
             start = relevant_positions[0][col]
             for row in range(1, len(relevant_positions)):
                 total_dist +=  relevant_positions[row][col] - start
+            if total_dist == 0:
+                continue
             bonus += 1/total_dist
 
         results[i] = (score + bonus, url)
@@ -176,36 +180,71 @@ def filter_and_diversify_results(results, max_per_domain=3):
 
 def run_retrieval(index_path=INDEX_PATH, mapping_path=MAP_PATH, offset_path=OFFSET_PATH):
     log = {}
-    with open(mapping_path, "r") as inFile:
+
+    with open(MAP_PATH, "r") as inFile:
+        print("Loading mapping...")
         id_mapping = json.load(inFile)
-    with open(offset_path, "r") as inFile:
+    with open(OFFSET_PATH, "r") as inFile:
+        print("Loading offsets...")
         offsets = json.load(inFile)
-    if Path("two_gram_index.json").exists(): # load two gram if exists
-        with open("two_gram_" + mapping_path, "r") as inFile:
+
+    if Path("two_gram_index.json").exists():
+        print("Found two-gram index.")
+        with open("two_gram_" + MAP_PATH, "r") as inFile:
+            print("Loading two-gram mapping...")
             two_gram_mapping = json.load(inFile)
-        with open("two_gram_" + offset_path, "r") as inFile:
+        with open("two_gram_" + OFFSET_PATH, "r") as inFile:
+            print("Loading two-gram offsets...")
             two_gram_offsets = json.load(inFile)
-    if Path("positional_index.json").exists(): # load positional if exists
-        with open("positional_index_inv_" + mapping_path, "r") as inFile:
+
+    if Path("positional_index.json").exists():
+        print("Positional index found.")
+        with open("positional_index_inv_" + MAP_PATH, "r") as inFile:
+            print("Loading positional-index inverse mapping...")
             positional_inverse_index_mapping = json.load(inFile)
-        with open("positional_index_" + offset_path, "r") as inFile:
+        with open("positional_index_" + OFFSET_PATH, "r") as inFile:
+            print("Loading positional-index offsets...")
             positional_index_offsets = json.load(inFile)
+
+    if Path("hits_results.json").exists():
+        print("Hits results found...")
+        with open("hits_results.json", 'r') as inFile:
+            print("Loading hits-results...")
+            hits_results = json.load(inFile)
+
+    if Path("pr_results.json").exists():
+        print("PR results found...")
+        with open("pr_results.json", 'r') as inFile:
+            print("Loading pr-results...")
+            pr_results = json.load(inFile)
 
     while True:
         query = prompt_user()
+
         if not query:
             print("Exiting...")
             break
+
         start = time.perf_counter()
         results = query_search(query, id_mapping, offsets)
+
         if Path("two_gram_index.json").exists(): # Add results of two-gram if it exists
             two_gram_results = query_search(query, two_gram_mapping, two_gram_offsets, two_gram=True)
             score_map = defaultdict(float)
             for score, url in results + two_gram_results:
                 score_map[url] += score
             results = [(score, url) for url, score in score_map.items()]
+
         if Path("positional_index.json").exists(): # Add results of positional if it exists
             evaluate_position(query, results, positional_inverse_index_mapping, positional_index_offsets)
+
+        if Path("hits_results.json").exists():
+            for i, (score, url) in enumerate(results):
+                results[i] = (score + score * hits_results[url]['authority'], url)
+
+        if Path("pr_results.json").exists():
+            for i, (score, url) in enumerate(results):
+                results[i] = (score + score * pr_results[url], url)
 
         results.sort(reverse=True, key=lambda x: x[0])
         results = filter_and_diversify_results(results, max_per_domain=3)
