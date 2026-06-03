@@ -1,7 +1,7 @@
 import json
 import math
 from collections import defaultdict
-
+from urllib.parse import urlparse
 from nltk.stem import PorterStemmer
 from search_utils import tokenize
 import time
@@ -10,6 +10,8 @@ from pathlib import Path
 INDEX_PATH = 'index.json'
 MAP_PATH = 'id_mapping.json'
 OFFSET_PATH = 'offsets.json'
+
+
 
 def index_search(token, offsets, index_path=INDEX_PATH):
     if token not in offsets:
@@ -76,12 +78,27 @@ def query_search(query, id_mapping, offsets, **kwargs):
 
     ret = []
     for doc_id in overlaps:
-        score = sum(scores[doc_id] for scores in doc)
+        # Track the individual term scores for this specific document
+        individual_scores = [scores[doc_id] for scores in doc]
+        
+        score = sum(individual_scores)
+
+        # Find the highest single term score and the average term score
+        max_single_score = max(individual_scores) if individual_scores else 1
+        avg_score = base_score / len(individual_scores) if individual_scores else 1
+        
+        # Balance factor: Penalizes documents if a single rare word represents 
+        # an overwhelming percentage of the total score.
+        balance_factor = avg_score / max_single_score
+        
+        # Scale the final score safely
+        final_score = base_score * balance_factor
+        # --------------------------
 
         url = id_mapping[str(doc_id)] if str(doc_id) in id_mapping else id_mapping[doc_id]
-        ret.append((score, url))
+        ret.append((final_score, url))
+        
     return ret
-
 def prompt_user():
     """
     Prompts the user to enter a query and returns it.
@@ -139,7 +156,23 @@ def evaluate_position(query, results, mapping, offsets):
         results[i] = (score + bonus, url)
 
 
-
+def filter_and_diversify_results(results, max_per_domain=3):
+    """
+    Limits the number of results originating from a single domain/folder setup.
+    """
+    diversified = []
+    domain_counts = defaultdict(int)
+    
+    for score, url in results:
+        parsed = urlparse(url)
+        # Groups by host domain (e.g., grape.ics.uci.edu)
+        domain = parsed.netloc
+        
+        if domain_counts[domain] < max_per_domain:
+            diversified.append((score, url))
+            domain_counts[domain] += 1
+            
+    return diversified
 
 def run_retrieval(index_path=INDEX_PATH, mapping_path=MAP_PATH, offset_path=OFFSET_PATH):
     log = {}
@@ -175,6 +208,7 @@ def run_retrieval(index_path=INDEX_PATH, mapping_path=MAP_PATH, offset_path=OFFS
             evaluate_position(query, results, positional_inverse_index_mapping, positional_index_offsets)
 
         results.sort(reverse=True, key=lambda x: x[0])
+        results = filter_and_diversify_results(results, max_per_domain=3)
 
         print_results(query, results, time.perf_counter() - start)
         log[query] = results

@@ -2,9 +2,9 @@ Poor Results:
 1. zzzzz
 - Issue: "Top 5 results for 'zzzzzz" still printed.
 - Fix: Created edge case coverage to print either all results or nothing.
-2. zzzzzz
-- Issue: Shows results with score of 9pts.
-- Fix:
+2. computer science 2026
+- Issue: Shows results from 1996
+- Fix:  Implemented IDF balance multiplier
 3.
     data mining and information fusion in sensor networks if information fusion was able to be able to do that\
     data mining and information fusion in sensor networks if information fusion was able to be able to do that\
@@ -14,24 +14,24 @@ Poor Results:
 4. collaborate
 - Issue: negative tf-idf scoring, document frequency was higher than expected
 - Fix: Stemmed during processing instead of after to ensure different, but same stem words weren't treated differently
-5.
-- Issue:
-- Fix:
-6.
-- Issue:
-- Fix:
-7.
-- Issue:
-- Fix:
-8.
-- Issue:
-- Fix:
-9.
-- Issue:
-- Fix:
-10.
-- Issue:
-- Fix:
+5. the and of
+- Issue: Causes massive postings list the sorts through most of the URLS
+- Fix: Implemented Stopwords list and check for stop words
+6. How to code in python
+- Issue: Stop words in combination with keywords causes a dramatic increase in TF-IDF scores
+- Fix: Implemented Stopwords list and check for stop words
+7. c++
+- Issue: baseline regex inflates top result, as C appears thousands of times in there
+- Fix: adjusted regex to capture optional trailing (#, ++)
+8. data structures 
+- Issue: Retrieved and duplicated urls
+- Fix: implemented filter function to remove duplicates
+9. a
+- Issue: Pulls up 17,000+ results, way too much
+- Fix: added "a" to stop word list
+10. software engineering group project
+- Issue: top result has inflate dTF-IDF score of about 114.
+- Fix: connected filter function from search_utils to search_index to properly filter duplicates
 Good Results:
 11. masters of software engineering (stemming handled properly. same results for both this and master of software engineering)
 12. acm (capitalization does not affect resulting links)

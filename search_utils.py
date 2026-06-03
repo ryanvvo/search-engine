@@ -1,8 +1,16 @@
 import re
+import posixpath
 from collections import Counter
 import hashlib
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 HASH_BITS = 64
 hash_cache = set()
+
+STOP_WORDS = {
+    'a', 'the', 'and', 'of', 'to', 'in', 'is', 'that', 'for', 'on', 'with', 
+    'it', 'as', 'by', 'at', 'an', 'from', 'this', 'about', 'which',
+    'how', 'where', 'can', 'i', 'find', 'who', 'why'
+}
 
 def tokenize(text):
     '''
@@ -10,14 +18,24 @@ def tokenize(text):
     a token is a sequence of alphanumeric characters, independent of capitalization (so Apple, apple, aPpLe are the same token).
     returns Generator<Token>
     '''
+    if not text:
+        return [] # Safe exit if string is empty
+    
+    # Updated Regex: Captures alphanumeric words AND optional trailing '++' or '#'
+    token_pattern = re.compile(r"[a-z0-9]+(?:\+\+|#)?")
 
-    return (match.group() for match in re.finditer(r"[a-z0-9]+", text.lower()))
+    # 1. Extract all raw matched strings from the text in lowercase
+    raw_tokens = [match.group() for match in token_pattern.finditer(text.lower())]
+    
+    # 2. Filter out stop words using an O(1) set check, then return the static list
+    return [token for token in raw_tokens if token not in STOP_WORDS]
 
 def hashify(token):
     '''
     Hash a token to a hash value. We use this instead of Python's built-in hash function because this is determinstic.
     '''
-    return int(hashlib.md5(token.encode('utf-8')).hexdigest(), 16)
+    md5_int = int(hashlib.md5(token.encode('utf-8')).hexdigest(), 16)
+    return md5_int & ((1 << HASH_BITS) - 1)
 
 def sim_hash(word_count: Counter):
     '''
@@ -63,3 +81,31 @@ def is_similar(word_count: Counter, threshold=.95):
             return True
     hash_cache.add(sim)
     return False
+
+def canonicalize_url(url):
+    """
+    Cleans up URLs to prevent indexing duplicate pages with different parameters.
+    """
+    if not url:
+        return ""
+        
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    netloc = parsed.netloc.lower()
+    
+    if scheme == "http" and netloc.endswith(":80"):
+        netloc = netloc[:-3]
+    elif scheme == "https" and netloc.endswith(":443"):
+        netloc = netloc[:-4]
+        
+    path = posixpath.normpath(parsed.path)
+    if parsed.path.endswith('/') and not path.endswith('/'):
+        path += '/'
+        
+    ignored_params = {'version', 'action', 'format', 'utm_source', 'sessionid', 'rev', 'limit'}
+    query_pairs = parse_qsl(parsed.query)
+    filtered_query = [(k, v) for k, v in query_pairs if k.lower() not in ignored_params]
+    filtered_query.sort() # Ensure order variations result in identical keys
+    query = urlencode(filtered_query)
+    
+    return urlunparse((scheme, netloc, path, parsed.params, query, ''))

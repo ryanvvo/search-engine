@@ -148,6 +148,8 @@ def main():
     unique_tokens = set() # may delete later
     r_index = defaultdict(list) # swapped to max-heap for more efficient retrieval of top k results, format: [stemmed token: list[(-count, doc id)]]
     id_mapping = {}
+    seen_urls = set()
+
     with zipfile.ZipFile(PATH, "r") as zf:
         for filename in zf.namelist():
             if not filename.endswith(".json"): continue
@@ -156,6 +158,17 @@ def main():
                 debug_pre_t = time.perf_counter()
                 print(filename, end=' ')
             url, word_count, total = open_file(zf, filename)
+
+            canonical_url = search_utils.canonicalize_url(url)   # Transform path 
+
+            # Deduplication Check: Skip if an alternate string version has already been indexed
+            if canonical_url in seen_urls:
+                if __debug__:
+                    print(f"[DUPLICATE SKIPPED] -> {url}")
+                continue
+            
+            seen_urls.add(canonical_url)            # Mark this safe canonical layout as indexed
+
             if __debug__:
                 print(len(word_count), total, f"{time.perf_counter()-debug_pre_t:.2f}")
             if SIM_REMOVAL and search_utils.is_similar(word_count): # Simhash 95% remove similar pages
