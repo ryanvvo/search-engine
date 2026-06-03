@@ -29,6 +29,12 @@ if Path("positional_index.json").exists():
     with open("positional_index_" + OFFSET_PATH, "r") as inFile:
         print("Loading positional-index offsets...")
         positional_index_offsets = json.load(inFile)
+
+if Path("hits_results.json").exists():
+    print("Hits results found...")
+    with open("hits_results.json", 'r') as inFile:
+        print("Loading hits-results...")
+        hits_results = json.load(inFile)
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -40,14 +46,21 @@ def search():
 
     start = time.perf_counter()
     results = query_search(query, mapping, offsets)
+
     if Path("two_gram_index.json").exists():
         two_gram_results = query_search(query, two_gram_mapping, two_gram_offsets, two_gram=True)
         score_map = defaultdict(float)
         for score, url in results + two_gram_results:
             score_map[url] += score
         results = [(score, url) for url, score in score_map.items()]
+
     if Path("positional_index.json").exists(): # Add results of positional if it exists
         evaluate_position(query, results, positional_inverse_index_mapping, positional_index_offsets)
+
+    if Path("hits_results.json").exists():
+        for i, (score, url) in enumerate(results):
+            results[i] = (score + score * hits_results[url], url)
+
     results.sort(reverse=True, key=lambda x: x[0])
 
     return jsonify({

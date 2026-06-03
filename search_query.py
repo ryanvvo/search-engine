@@ -161,22 +161,33 @@ def run_retrieval(index_path=INDEX_PATH, mapping_path=MAP_PATH, offset_path=OFFS
             positional_inverse_index_mapping = json.load(inFile)
         with open("positional_index_" + offset_path, "r") as inFile:
             positional_index_offsets = json.load(inFile)
+    if Path("hits_results.json").exists():
+        with open("hits_results.json", 'r') as inFile:
+            hits_results = json.load(inFile)
 
     while True:
         query = prompt_user()
+
         if not query:
             print("Exiting...")
             break
+
         start = time.perf_counter()
         results = query_search(query, id_mapping, offsets)
+
         if Path("two_gram_index.json").exists(): # Add results of two-gram if it exists
             two_gram_results = query_search(query, two_gram_mapping, two_gram_offsets, two_gram=True)
             score_map = defaultdict(float)
             for score, url in results + two_gram_results:
                 score_map[url] += score
             results = [(score, url) for url, score in score_map.items()]
+
         if Path("positional_index.json").exists(): # Add results of positional if it exists
             evaluate_position(query, results, positional_inverse_index_mapping, positional_index_offsets)
+
+        if Path("hits_results.json").exists():
+            for i, (score, url) in enumerate(results):
+                results[i] = (score + score*hits_results[url], url)
 
         results.sort(reverse=True, key=lambda x: x[0])
 
