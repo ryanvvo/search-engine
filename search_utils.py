@@ -6,29 +6,15 @@ import hashlib, time, json
 HASH_BITS = 64
 hash_cache = set()
 
-STOP_WORDS = {
-    'a', 'the', 'and', 'of', 'to', 'in', 'is', 'that', 'for', 'on', 'with', 
-    'it', 'as', 'by', 'at', 'an', 'from', 'this', 'about', 'which',
-    'how', 'where', 'can', 'i', 'find', 'who', 'why'
-}
-
 def tokenize(text):
     '''
     Reads in text file and returns a normalized list.
     a token is a sequence of alphanumeric characters, independent of capitalization (so Apple, apple, aPpLe are the same token).
     returns Generator<Token>
     '''
-    if not text:
-        return [] # Safe exit if string is empty
-    
-    # Updated Regex: Captures alphanumeric words AND optional trailing '++' or '#'
-    token_pattern = re.compile(r"[a-z0-9]+(?:\+\+|#)?")
+    if not text: return []
+    return (match.group() for match in re.finditer(r"[a-z0-9]+", text.lower()))
 
-    # 1. Extract all raw matched strings from the text in lowercase
-    raw_tokens = [match.group() for match in token_pattern.finditer(text.lower())]
-    
-    # 2. Filter out stop words using an O(1) set check, then return the static list
-    return [token for token in raw_tokens if token not in STOP_WORDS]
 
 def hashify(token):
     '''

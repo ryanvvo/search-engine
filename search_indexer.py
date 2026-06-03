@@ -8,7 +8,7 @@ from collections import Counter, defaultdict
 import warnings
 from nltk.stem import PorterStemmer
 import time
-from search_utils import tokenize, is_similar, dump_json
+from search_utils import tokenize, is_similar, dump_json, canonicalize_url
 
 start_time = time.perf_counter()
 
@@ -77,6 +77,7 @@ def merge_indices(num_of_indices, dest='index'):
     iterators = [iter_index(f"{dest}{i}.json") for i in range(num_of_indices)]
     heap = []
 
+    # initialize heap
     for i, it in enumerate(iterators):
         try:
             token, postings = next(it)
@@ -140,31 +141,34 @@ def main():
         for filename in zf.namelist():
             if not filename.endswith(".json"): continue
 
-            if __debug__:
+            if __debug__: # print timer
                 debug_pre_t = time.perf_counter()
                 print(filename, end=' ')
             url, word_count, total = open_file(zf, filename)
 
-            canonical_url = search_utils.canonicalize_url(url)   # Transform path 
+            canonical_url = canonicalize_url(url)   # Transform path
 
             # Deduplication Check: Skip if an alternate string version has already been indexed
             if canonical_url in seen_urls:
                 if __debug__:
-                    print(f"[DUPLICATE SKIPPED] -> {url}")
+                    print(f"dupe skipped -> {url}")
                 continue
             
-            seen_urls.add(canonical_url)            # Mark this safe canonical layout as indexed
+            seen_urls.add(canonical_url) # Mark this safe canonical layout as indexed
 
             if __debug__:
-                print(len(word_count), total, f"{time.perf_counter()-debug_pre_t:.2f}")
+                print(len(word_count), total, f"{time.perf_counter()-debug_pre_t:.2f}") # end timer
             if SIM_REMOVAL and is_similar(word_count): # Simhash 95% remove similar pages
                     continue
+
+            # add token to index
             for key in word_count.keys():
                 r_index[key].append((page_id, word_count[key])) # format: [doc id: list[postings, count]]
                 unique_tokens.add(key)
             id_mapping[page_id] = url
             page_id += 1
 
+            # create new partial if full
             if sys.getsizeof(r_index) > MAX_INDEX_SIZE:
                 print("Max index size reached, dumping to disk...")
                 dump_json(r_index, f"index{indices}.json", partial=True)
@@ -181,17 +185,18 @@ def main():
     dump_json(id_mapping, "id_mapping.json")
 
     total_size = os.path.getsize("index.json") / 1024 #get in bytes, then convert to KB
-    end_time = time.perf_counter()
 
-    delta_min = (end_time - start_time) // 60
-    delta_sec = (end_time - start_time) % 60
     print("Number of partial indices made:", indices+1)
     print("Removing partial indices...")
     for p in [f"index{i}.json" for i in range(indices+1)]:
         os.remove(p)
     build_offset_index()
 
-    print(f"Execution time: {end_time - start_time:.4f} seconds\n")
+    end_time = time.perf_counter()
+    delta_min = (end_time - start_time) // 60
+    delta_sec = (end_time - start_time) % 60
+
+    print(f"Execution time: {delta_min} minutes, {delta_sec:.2f} seconds\n")
     print("Number of indexed documents:", len(id_mapping))
     print("Number of unique tokens after stemming:", len(unique_tokens))
     print("Size in KB:", f"{total_size:.2f}")

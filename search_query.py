@@ -13,13 +13,11 @@ OFFSET_PATH = 'offsets.json'
 
 
 
-def index_search(token, offsets, index_path=INDEX_PATH):
+def index_search(file, token, offsets):
     if token not in offsets:
         return []
-
-    with open(index_path, 'rb') as f:
-        f.seek(offsets[token])
-        return json.loads(f.readline())[token]
+    file.seek(offsets[token])
+    return json.loads(file.readline())[token]
 
 def query_search(query, id_mapping, offsets, **kwargs):
     stemmer = PorterStemmer()
@@ -42,17 +40,25 @@ def query_search(query, id_mapping, offsets, **kwargs):
 
     all_tokens = []
     doc_frequencies = {} # Store df(t)
+    if kwargs.get("two_gram", False):
+        with open("two_gram_index.json") as file:
+            for token in tokens:
+                search = index_search(file, token, offsets)
+                if not search:
+                    return []  # will not have anything, as we are using AND to match
+                all_tokens.append(search)
+                # df(t) is the number of documents containing this token
+                doc_frequencies[token] = len(search)
 
-    for token in tokens:
-        if kwargs.get("two_gram", False):
-            search = index_search(token, offsets, index_path="two_gram_index.json")
-        else:
-            search = index_search(token, offsets)
-        if not search:
-            return []  # will not have anything, as we are using AND to match
-        all_tokens.append(search)
-        # df(t) is the number of documents containing this token
-        doc_frequencies[token] = len(search)
+    else:
+        with open("index.json") as file:
+            for token in tokens:
+                search = index_search(file, token, offsets)
+                if not search:
+                    return []  # will not have anything, as we are using AND to match
+                all_tokens.append(search)
+                # df(t) is the number of documents containing this token
+                doc_frequencies[token] = len(search)
 
     doc = []  # list of dictionaries w/ doc ids as keys and scores as values
     for tk, token in zip(all_tokens, tokens):
@@ -81,7 +87,7 @@ def query_search(query, id_mapping, offsets, **kwargs):
         # Track the individual term scores for this specific document
         individual_scores = [scores[doc_id] for scores in doc]
         
-        score = sum(individual_scores)
+        base_score = sum(individual_scores)
 
         # Find the highest single term score and the average term score
         max_single_score = max(individual_scores) if individual_scores else 1
@@ -90,12 +96,12 @@ def query_search(query, id_mapping, offsets, **kwargs):
         # Balance factor: Penalizes documents if a single rare word represents 
         # an overwhelming percentage of the total score.
         balance_factor = avg_score / max_single_score
-        
+
         # Scale the final score safely
         final_score = base_score * balance_factor
         # --------------------------
 
-        url = id_mapping[str(doc_id)] if str(doc_id) in id_mapping else id_mapping[doc_id]
+        url = id_mapping.get(str(doc_id)) or id_mapping[doc_id]
         ret.append((final_score, url))
         
     return ret
@@ -131,10 +137,12 @@ def log_output(log):
 def evaluate_position(query, results, mapping, offsets):
     stemmer = PorterStemmer()
     tokens = {stemmer.stem(token) for token in tokenize(query)}
+    if len(tokens) < 2: return # no position to compare
     positions = {} # token: [id, [positions]]
-    for token in tokens:
-        postings = index_search(token, offsets, index_path="positional_index.json")
-        positions[token] = {page: pos for page, pos in postings}
+    with open("positional_index.json") as file:
+        for token in tokens:
+            postings = index_search(file, token, offsets)
+            positions[token] = {page: pos for page, pos in postings}
     for i, (score, url) in enumerate(results):
         page_id = mapping.get(url, -1)
         if page_id == -1: continue
@@ -255,7 +263,7 @@ def run_retrieval(index_path=INDEX_PATH, mapping_path=MAP_PATH, offset_path=OFFS
     log_output(log)
 
 def main():
-    if not (Path(INDEX_PATH).exists and Path(MAP_PATH).exists and Path(OFFSET_PATH).exists):
+    if not (Path(INDEX_PATH).exists() and Path(MAP_PATH).exists() and Path(OFFSET_PATH).exists()):
         print("Please run indexer first!")
         return
 

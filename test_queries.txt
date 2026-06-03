@@ -11,24 +11,24 @@ Poor Results:
     data mining and information fusion in sensor networks if information fusion was able to be able to do that
 - Issue: Passed the .3 second time limit.
 - Fix: Instead of binary searching through the file, we used byte offsets to get O(1) search time.
-4. collaborate
-- Issue: negative tf-idf scoring, document frequency was higher than expected
-- Fix: Stemmed during processing instead of after to ensure different, but same stem words weren't treated differently
-5. community community community community community
+4. the issue of this is that this query has too many tokens so now I need to optimize the algorithm more python java
+- Issue: exceeded time limit of 0.3 seconds due to the large number of tokens
+- Fix: adjusted so that files are only opened once per query, instead of per token
+5. living with the computer science community
 - Issue: Too slow after adding positional index
 - Fix: Optimized to include more O(1) operations
-6. How to code in python
-- Issue: Stop words in combination with keywords causes a dramatic increase in TF-IDF scores
-- Fix: Implemented Stopwords list and check for stop words
-7. c++
-- Issue: baseline regex inflates top result, as C appears thousands of times in there
-- Fix: adjusted regex to capture optional trailing (#, ++)
+6. collaborate
+- Issue: negative tf-idf scoring, document frequency was higher than expected
+- Fix: Stemmed during processing instead of after to ensure different, but same stem words weren't treated differently
+7. 1 2 3 4 5
+- Issue: exceeded the time limit of 0.3 seconds due to the large number of results
+- Fix: Introduced further optimizations with query searching and increasing similarity tolerance
 8. data structures 
 - Issue: Retrieved and duplicated urls
 - Fix: implemented filter function to remove duplicates
 9. a
-- Issue: Pulls up 17,000+ results, way too much
-- Fix: added "a" to stop word list
+- Issue: Too many results lagged the display
+- Fix: Added the filter to web gui to show less results
 10. software engineering group project
 - Issue: top result has inflate dTF-IDF score of about 114.
 - Fix: connected filter function from search_utils to search_index to properly filter duplicates
