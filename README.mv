@@ -1,3 +1,8 @@
 Download the developer.zip (or analyst.zip) and put it in the same directory as this README.mv file.
 
+You must run every indexer file if you wish to use it. Main indexer from search_indexer.py is required to be ran,
+the rest are optional.
+
+Run search_query.py for terminal, web_gui.py for Web GUI.
+
 Python 3.12
