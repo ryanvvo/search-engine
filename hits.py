@@ -4,7 +4,7 @@ import re
 import math
 from collections import defaultdict
 from urllib.parse import urljoin, urldefrag
-from search_utils import dump_json
+from search_utils import dump_json, canonicalize_url
 
 PATH = "developer.zip"
 
@@ -37,7 +37,7 @@ class AdjIndex:
     def _build_index(self):
         print(f"Building index from {self.zip_path}...")
         raw_links = {}   # url : raw outgoing urls
-
+        seen_url = set()
         with zipfile.ZipFile(self.zip_path, "r") as zf:
             members = [m for m in zf.namelist() if m.endswith(".json")]
             total = len(members)
@@ -48,11 +48,15 @@ class AdjIndex:
                     with zf.open(member) as f:
                         data = json.load(f)
                     url = data.get("url", "").strip()
+                    canonical_url = canonicalize_url(url)
+                    if canonical_url in seen_url:
+                        i += 1
+                        continue
+                    seen_url.add(canonical_url)
                     html = data.get("content", "")
-                    if not url: continue
-
-                    self.url_to_member[url] = member
-                    raw_links[url] = _extract_links(url, html)
+                    if not canonical_url: continue
+                    self.url_to_member[canonical_url] = member
+                    raw_links[canonical_url] = _extract_links(canonical_url, html)
                 except Exception: # skip bad files
                     pass
 

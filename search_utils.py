@@ -15,6 +15,12 @@ def tokenize(text):
     if not text: return []
     return (match.group() for match in re.finditer(r"[a-z0-9]+", text.lower()))
 
+def tick_timer(msg, start):
+    """
+    Ticks the timer for debugging purposes.
+    """
+    print(f"{msg}{(time.perf_counter() - start):2f}")
+    return time.perf_counter()
 
 def hashify(token):
     '''

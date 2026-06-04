@@ -18,14 +18,15 @@ warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 PATH = 'developer.zip' # switch to analyst for debugging developer
 TAG_WHITELIST = ['title','h1','h2','h3', 'h4', 'h5', 'h6','b','strong']
 WEIGHTS = {'title': 4,'h1': 2, 'h2': 2, 'h3': 2,'h4': 1, 'h5': 1, 'h6': 1, 'b': 1, 'strong': 1 }
-MAX_INDEX_SIZE = 5 * 1024 * 1024 # 5 mb
+MAX_INDEX_SIZE = 10 * 1024 * 1024 # 10 mb
 SIM_REMOVAL = True
+SIZE_OF_TUPLE = 56
+stemmer = PorterStemmer()
 
 def open_file(zf, path):
     '''
     Opens the file on path and counts the tokens, returning the url and token count.
     '''
-    stemmer = PorterStemmer()
     with zf.open(path, 'r') as f:
         data = json.load(f)
     url = data['url']
@@ -46,6 +47,7 @@ def open_file(zf, path):
             tag_tokens = tokenize(string)
             for token in tag_tokens:
                 count[stemmer.stem(token)] += weight
+                total += 1
 
     # include anchor texts
     for anchor in main_content.find_all("a"):
@@ -54,6 +56,7 @@ def open_file(zf, path):
             anchor_tokens = tokenize(text)
             for token in anchor_tokens:
                 count[stemmer.stem(token)] += 1
+                total += 1
 
     tokens = tokenize(main_content.get_text(separator = ' ', strip = True))
 
@@ -76,7 +79,7 @@ def merge_indices(num_of_indices, dest='index'):
     start = time.perf_counter()
     iterators = [iter_index(f"{dest}{i}.json") for i in range(num_of_indices)]
     heap = []
-
+    unique_tokens = 0
     # initialize heap
     for i, it in enumerate(iterators):
         try:
@@ -101,13 +104,14 @@ def merge_indices(num_of_indices, dest='index'):
 
             merged.sort(key=lambda x: x[0], reverse=True)
             f.write(json.dumps({current_token: merged}) + '\n')
-
+            unique_tokens += 1
             try:
                 token, p = next(iterators[i])
                 heapq.heappush(heap, (token, i, p))
             except StopIteration:
                 pass
     print(f"Merging finished. {time.perf_counter() - start:.4f} seconds.")
+    return unique_tokens
 
 def build_offset_index(index_path='index.json', offsets_path='offsets.json'):
     """
@@ -132,10 +136,10 @@ def build_offset_index(index_path='index.json', offsets_path='offsets.json'):
 def main():
     page_id = 0
     indices = 0
-    unique_tokens = set() # may delete later
     r_index = defaultdict(list) # swapped to max-heap for more efficient retrieval of top k results, format: [stemmed token: list[(-count, doc id)]]
     id_mapping = {}
     seen_urls = set()
+    posting_count = 0
 
     with zipfile.ZipFile(PATH, "r") as zf:
         for filename in zf.namelist():
@@ -147,40 +151,36 @@ def main():
             url, word_count, total = open_file(zf, filename)
 
             canonical_url = canonicalize_url(url)   # Transform path
-
             # Deduplication Check: Skip if an alternate string version has already been indexed
             if canonical_url in seen_urls:
                 if __debug__:
                     print(f"dupe skipped -> {url}")
                 continue
-            
             seen_urls.add(canonical_url) # Mark this safe canonical layout as indexed
 
             if __debug__:
                 print(len(word_count), total, f"{time.perf_counter()-debug_pre_t:.2f}") # end timer
             if SIM_REMOVAL and is_similar(word_count): # Simhash 95% remove similar pages
-                    continue
+                continue
 
             # add token to index
             for key in word_count.keys():
                 r_index[key].append((page_id, word_count[key])) # format: [doc id: list[postings, count]]
-                unique_tokens.add(key)
-            id_mapping[page_id] = url
+                posting_count += 1
+            id_mapping[page_id] = canonical_url
             page_id += 1
 
             # create new partial if full
-            if sys.getsizeof(r_index) > MAX_INDEX_SIZE:
+            if posting_count * SIZE_OF_TUPLE > MAX_INDEX_SIZE:
                 print("Max index size reached, dumping to disk...")
                 dump_json(r_index, f"index{indices}.json", partial=True)
                 r_index.clear()
                 indices += 1
-
-            elif __debug__:
-                print(filename)
+                posting_count = 0
 
     dump_json(r_index, f"index{indices}.json", partial=True)
 
-    merge_indices(indices+1)
+    unique_tokens = merge_indices(indices+1)
 
     dump_json(id_mapping, "id_mapping.json")
 
@@ -198,7 +198,7 @@ def main():
 
     print(f"Execution time: {delta_min} minutes, {delta_sec:.2f} seconds\n")
     print("Number of indexed documents:", len(id_mapping))
-    print("Number of unique tokens after stemming:", len(unique_tokens))
+    print("Number of unique tokens after stemming:", unique_tokens)
     print("Size in KB:", f"{total_size:.2f}")
 
     # Output.txt
@@ -210,7 +210,7 @@ def main():
         outFile.write(f"Number of partial indices made: {indices + 1}\n\n")
 
         outFile.write(f"Number of indexed documents: {len(id_mapping)}\n")
-        outFile.write(f"Number of unique tokens after stemming: {len(unique_tokens)}\n")
+        outFile.write(f"Number of unique tokens after stemming: {unique_tokens}\n")
         outFile.write(f"Size in KB: {total_size:.2f}\n\n")
     os.replace(temp, fin)
 

@@ -3,15 +3,19 @@ import math
 from collections import defaultdict
 from urllib.parse import urlparse
 from nltk.stem import PorterStemmer
-from search_utils import tokenize
+from search_utils import tokenize, tick_timer
 import time
 from pathlib import Path
 
 INDEX_PATH = 'index.json'
 MAP_PATH = 'id_mapping.json'
 OFFSET_PATH = 'offsets.json'
+stemmer = PorterStemmer()
 
-
+HAS_TWO_GRAM = Path("two_gram_index.json").exists()
+HAS_POSITIONAL = Path("positional_index.json").exists()
+HAS_HITS = Path("hits_results.json").exists()
+HAS_PR = Path("pr_results.json").exists()
 
 def index_search(file, token, offsets):
     if token not in offsets:
@@ -20,7 +24,6 @@ def index_search(file, token, offsets):
     return json.loads(file.readline())[token]
 
 def query_search(query, id_mapping, offsets, **kwargs):
-    stemmer = PorterStemmer()
     if kwargs.get("two_gram", False):
         tokens = []
         query_tokens = tokenize(query)
@@ -135,7 +138,6 @@ def log_output(log):
 
 
 def evaluate_position(query, results, mapping, offsets):
-    stemmer = PorterStemmer()
     tokens = {stemmer.stem(token) for token in tokenize(query)}
     if len(tokens) < 2: return # no position to compare
     positions = {} # token: [id, [positions]]
@@ -186,7 +188,8 @@ def filter_and_diversify_results(results, max_per_domain=3):
             
     return diversified
 
-def run_retrieval(index_path=INDEX_PATH, mapping_path=MAP_PATH, offset_path=OFFSET_PATH):
+
+def run_retrieval():
     log = {}
 
     with open(MAP_PATH, "r") as inFile:
@@ -196,7 +199,7 @@ def run_retrieval(index_path=INDEX_PATH, mapping_path=MAP_PATH, offset_path=OFFS
         print("Loading offsets...")
         offsets = json.load(inFile)
 
-    if Path("two_gram_index.json").exists():
+    if HAS_TWO_GRAM:
         print("Found two-gram index.")
         with open("two_gram_" + MAP_PATH, "r") as inFile:
             print("Loading two-gram mapping...")
@@ -205,7 +208,7 @@ def run_retrieval(index_path=INDEX_PATH, mapping_path=MAP_PATH, offset_path=OFFS
             print("Loading two-gram offsets...")
             two_gram_offsets = json.load(inFile)
 
-    if Path("positional_index.json").exists():
+    if HAS_POSITIONAL:
         print("Positional index found.")
         with open("positional_index_inv_" + MAP_PATH, "r") as inFile:
             print("Loading positional-index inverse mapping...")
@@ -214,13 +217,13 @@ def run_retrieval(index_path=INDEX_PATH, mapping_path=MAP_PATH, offset_path=OFFS
             print("Loading positional-index offsets...")
             positional_index_offsets = json.load(inFile)
 
-    if Path("hits_results.json").exists():
+    if HAS_HITS:
         print("Hits results found...")
         with open("hits_results.json", 'r') as inFile:
             print("Loading hits-results...")
             hits_results = json.load(inFile)
 
-    if Path("pr_results.json").exists():
+    if HAS_PR:
         print("PR results found...")
         with open("pr_results.json", 'r') as inFile:
             print("Loading pr-results...")
@@ -233,31 +236,34 @@ def run_retrieval(index_path=INDEX_PATH, mapping_path=MAP_PATH, offset_path=OFFS
             print("Exiting...")
             break
 
-        start = time.perf_counter()
+        first_start = time.perf_counter()
         results = query_search(query, id_mapping, offsets)
-
-        if Path("two_gram_index.json").exists(): # Add results of two-gram if it exists
+        start = tick_timer("Time to get results: ", first_start)
+        if HAS_TWO_GRAM: # Add results of two-gram if it exists
             two_gram_results = query_search(query, two_gram_mapping, two_gram_offsets, two_gram=True)
             score_map = defaultdict(float)
             for score, url in results + two_gram_results:
                 score_map[url] += score
             results = [(score, url) for url, score in score_map.items()]
-
-        if Path("positional_index.json").exists(): # Add results of positional if it exists
+            start = tick_timer("Time to add two_gram ", start)
+        if HAS_POSITIONAL: # Add results of positional if it exists
             evaluate_position(query, results, positional_inverse_index_mapping, positional_index_offsets)
-
-        if Path("hits_results.json").exists():
+            start = tick_timer("Time to add positional: ", start)
+        if HAS_HITS:
             for i, (score, url) in enumerate(results):
                 results[i] = (score + score * hits_results[url]['authority'], url)
-
-        if Path("pr_results.json").exists():
+            start = tick_timer("Time to add hits: ", start)
+        if HAS_PR:
             for i, (score, url) in enumerate(results):
                 results[i] = (score + score * pr_results[url], url)
+            start = tick_timer("Time to add pr: ", start)
 
         results.sort(reverse=True, key=lambda x: x[0])
+        start = tick_timer("Time to get sort: ", start)
         results = filter_and_diversify_results(results, max_per_domain=3)
+        tick_timer("Time to get filter: ", start)
 
-        print_results(query, results, time.perf_counter() - start)
+        print_results(query, results, time.perf_counter() - first_start)
         log[query] = results
 
     log_output(log)
